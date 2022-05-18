@@ -1,11 +1,12 @@
-use sqlx::PgPool;
+use sqlx::{postgres::PgArguments, query::Query, PgPool, Pool, Postgres};
 
-#[tokio::main]
-async fn main() {
-    let pg_pool = PgPool::connect("postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app")
+async fn must_get_pool() -> Pool<Postgres> {
+    PgPool::connect("postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app")
         .await
-        .expect("Could not connect to the database!");
+        .expect("Could not connect to the database!")
+}
 
+fn insert_jobs_query() -> Query<'static, Postgres, PgArguments> {
     println!("Inserting jobs...");
     sqlx::query!(
         r#"
@@ -17,12 +18,15 @@ async fn main() {
              , ('{"e": 5}')
     "#
     )
-    .execute(&pg_pool)
-    .await
-    .expect("Could not insert job");
+}
 
-    println!(
-        "Next step: '{}'",
-        "INSERT INTO jobs (message) VALUES ('{}');"
-    );
+#[tokio::main]
+async fn main() {
+    let pg_pool = must_get_pool().await;
+
+    insert_jobs_query()
+        .execute(&pg_pool)
+        .await
+        .expect("Could not insert jobs");
+
 }
