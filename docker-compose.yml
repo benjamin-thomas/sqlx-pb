@@ -1,0 +1,20 @@
+version: '3.7'
+
+services:
+
+  # Initialize the DB container:
+  #   docker-compose up db
+  #
+  # Destroy all services and their related storage:
+  #   docker-compose down --volumes
+  #
+  # Connect an SQL shell:
+  #   PGPASSWORD=leak-ok-ieQu5ahh4P psql -h localhost -p 5433 -U postgres -d my_app
+  db:
+    image: postgres:12.9-alpine
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    ports:
+      - '127.0.0.1:5433:5432'
+    environment:
+      POSTGRES_PASSWORD: leak-ok-ieQu5ahh4P
+      POSTGRES_DB: my_app
