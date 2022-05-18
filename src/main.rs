@@ -59,10 +59,14 @@ async fn main() {
         .await
         .expect("Could not insert jobs");
 
-    let _jobs: Vec<Job> = next_jobs_query()
+    let jobs: Vec<Job> = next_jobs_query()
         .fetch_all(&pg_pool)
         .await
         .expect("Could not get jobs batch");
+
+    for j in jobs {
+        println!("Will work on job #{}", j.id)
+    }
 
     ()
 }
