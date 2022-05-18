@@ -48,25 +48,6 @@ fn insert_jobs_query() -> Query<'static, Postgres, PgArguments> {
     )
 }
 
-// fn next_jobs_query() -> Map<'static, Postgres, fn(PgRow) -> Result<Job, Error>, PgArguments> {
-//     sqlx::query_as!(
-//         Job,
-//         r#"
-//             UPDATE jobs
-//             SET status = 'Running'
-//             WHERE id IN (
-//                 SELECT id
-//                 FROM jobs
-//                 WHERE status = 'Queued'
-//                 ORDER BY id
-//                 LIMIT 5
-//                 FOR UPDATE SKIP LOCKED
-//             )
-//             RETURNING id, payload
-//             "#
-//     )
-// }
-
 #[tokio::main]
 async fn main() {
     let pg_pool = must_get_pool().await;
@@ -76,10 +57,6 @@ async fn main() {
         .await
         .expect("Could not insert jobs");
 
-    // let jobs: Vec<Job> = next_jobs_query()
-    //     .fetch_all(&pg_pool)
-    //     .await
-    //     .expect("Could not get jobs batch");
     let jobs = sqlx::query_as!(
         Job,
         r#"
@@ -119,10 +96,6 @@ async fn main() {
     [Finished running. Exit status: 101]
 
          */
-
-    // for j in jobs {
-    //     println!("Will work on job #{}", j.id)
-    // }
 
     ()
 }
