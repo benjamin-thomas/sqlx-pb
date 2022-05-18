@@ -1,3 +1,3 @@
 fn main() {
-    println!("Hello, world!");
+    println!("Next step: '{}'", "INSERT INTO jobs (message) VALUES ('{}');");
 }

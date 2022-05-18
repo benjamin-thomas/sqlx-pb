@@ -8,8 +8,18 @@ services:
   # Destroy all services and their related storage:
   #   docker-compose down --volumes
   #
+  # Database migrations
+  #
+  # Requirement:
+  #   cargo install sqlx-cli
+  #
+  # Create a migration:
+  #   DATABASE_URL=postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app sqlx migrate add create_jobs
+  #   DATABASE_URL=postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app sqlx migrate run
+  #
   # Connect an SQL shell:
   #   PGPASSWORD=leak-ok-ieQu5ahh4P psql -h localhost -p 5433 -U postgres -d my_app
+
   db:
     image: postgres:12.9-alpine
     command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
