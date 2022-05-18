@@ -4,6 +4,6 @@ CREATE TABLE jobs
 (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
     status JOB_STATUS NOT NULL DEFAULT 'Queued',
-    message JSONB NOT NULL
+    payload JSONB NOT NULL
 );
 
