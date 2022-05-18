@@ -19,6 +19,12 @@ services:
   #
   # Connect an SQL shell:
   #   PGPASSWORD=leak-ok-ieQu5ahh4P psql -h localhost -p 5433 -U postgres -d my_app
+  #
+  # Next step:
+  #   export DATABASE_URL=postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app
+  #   code .
+  #   clion . # must close every instance first
+  #   cargo watch --clear -x run
 
   db:
     image: postgres:12.9-alpine

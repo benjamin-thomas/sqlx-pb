@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tokio = { version = "1.18.2", features = [
+    "macros",
+] }
+sqlx = { version = "0.5.13", features = [
+    "runtime-tokio-native-tls",
+    "macros",
+    "postgres",
+] }
