@@ -1,3 +1,5 @@
+use std::num::TryFromIntError;
+
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -35,6 +37,28 @@ struct JobRow {
     status: JobStatus,
     payload: Json<Payload>,
     params: Option<Json<Params>>,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)] // see dbg! at the end of main
+struct DomainJob {
+    identifier: String,
+    status: JobStatus,
+    payload: Payload,
+}
+
+impl TryFrom<JobRow> for DomainJob {
+    type Error = TryFromIntError;
+
+    fn try_from(value: JobRow) -> Result<Self, Self::Error> {
+        let nid = u32::try_from(value.id)?;
+        let job = DomainJob {
+            identifier: format!("BATCH({})", nid/3),
+            status: value.status,
+            payload: value.payload.0,
+        };
+        Ok(job)
+    }
 }
 
 async fn must_get_pool() -> Pool<Postgres> {
@@ -84,6 +108,8 @@ fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
 async fn main() {
     let pg_pool = must_get_pool().await;
 
+    let mut domain_jobs: Vec<DomainJob> = vec!();
+
     insert_jobs()
         .execute(&pg_pool)
         .await
@@ -121,6 +147,9 @@ async fn main() {
         );
 
         work_on_payload(&job.payload.0);
+
+        let domain_job: DomainJob = job.try_into().expect("could not construct DomainJob");
+        domain_jobs.push(domain_job);
     }
 
     println!();
@@ -210,9 +239,17 @@ async fn main() {
         let status: JobStatus = row.try_get("status").unwrap();
         let payload: Json<Payload> = row.try_get("payload").unwrap();
         let params: Option<Json<Params>> = row.try_get("params").unwrap();
-        println!("4) Working on job #{} ({:?}) -> {:?} | {:?}", id, status, payload, params);
+        println!(
+            "4) Working on job #{} ({:?}) -> {:?} | {:?}",
+            id, status, payload, params
+        );
         work_on_payload(&payload);
     }
+
+    println!("======================");
+    println!("Domain jobs conversion!");
+    println!("======================");
+    dbg!(domain_jobs);
 
     ()
 }
