@@ -921,6 +921,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
+ "serde_json",
  "sha2",
  "sqlx-core",
  "sqlx-rt",
@@ -932,6 +933,8 @@ dependencies = [
 name = "sqlx-pb"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
 ]

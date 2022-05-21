@@ -4,6 +4,8 @@ use sqlx::query::Query;
 use sqlx::PgPool;
 use sqlx::Pool;
 use sqlx::Postgres;
+use serde_json::json;
+use serde::Serialize;
 
 #[derive(sqlx::Type, Debug)]
 #[sqlx(type_name = "JOB_STATUS")]
@@ -11,6 +13,12 @@ enum JobStatus {
     Queued,
     Running,
     Failed,
+}
+
+#[derive(Serialize)]
+enum Payload {
+    NOOP,
+    SendEmail { email: String },
 }
 
 #[derive(sqlx::FromRow)]
@@ -29,29 +37,31 @@ fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
     println!("Inserting jobs...");
     sqlx::query!(
         r#"
-        INSERT INTO jobs (status)
-        VALUES ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
-             , ($1)
+        INSERT INTO jobs (status, payload)
+        VALUES ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
+             , ($1, $2)
+             , ($1, $3)
     "#,
         JobStatus::Queued as JobStatus,
+        json!(Payload::NOOP),
+        json!(Payload::SendEmail { email: "user@example.com".to_string() })
     )
 }
 
