@@ -1,11 +1,13 @@
-use sqlx::Row;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json::json;
 use sqlx::postgres::PgArguments;
 use sqlx::query::Query;
+use sqlx::types::Json;
 use sqlx::PgPool;
 use sqlx::Pool;
 use sqlx::Postgres;
-use serde_json::json;
-use serde::Serialize;
+use sqlx::Row;
 
 #[derive(sqlx::Type, Debug)]
 #[sqlx(type_name = "JOB_STATUS")]
@@ -15,16 +17,17 @@ enum JobStatus {
     Failed,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 enum Payload {
     NOOP,
     SendEmail { email: String },
 }
 
 #[derive(sqlx::FromRow)]
-struct Job {
+struct JobRow {
     id: i64,
     status: JobStatus,
+    payload: Json<Payload>,
 }
 
 async fn must_get_pool() -> Pool<Postgres> {
@@ -61,7 +64,9 @@ fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
     "#,
         JobStatus::Queued as JobStatus,
         json!(Payload::NOOP),
-        json!(Payload::SendEmail { email: "user@example.com".to_string() })
+        json!(Payload::SendEmail {
+            email: "user@example.com".to_string()
+        })
     )
 }
 
@@ -75,9 +80,12 @@ async fn main() {
         .expect("Could not insert");
 
     println!("1) ==> `query_as!`");
-    println!("1) ==> Use SQL type override to fix this error: '{}'", r#"error: unsupported type job_status of column #2 ("status")"#);
+    println!(
+        "1) ==> Use SQL type override to fix this error: '{}'",
+        r#"error: unsupported type job_status of column #2 ("status")"#
+    );
     let jobs = sqlx::query_as!(
-        Job,
+        JobRow,
         r#"
             UPDATE jobs
             SET status = 'Running'
@@ -89,7 +97,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status as "status: JobStatus"
+            RETURNING id, status as "status: JobStatus", payload AS "payload: Json<Payload>"
             "#
     )
     .fetch_all(&pg_pool)
@@ -97,13 +105,18 @@ async fn main() {
     .expect("failed to grab jobs!");
 
     for job in jobs {
-        println!("1) Working on job #{} ({:?})", job.id, job.status)
+        println!(
+            "1) Working on job #{} ({:?}) -> {:?}",
+            job.id, job.status, job.payload
+        );
+
+        work_on_payload(&job.payload.0);
     }
 
     println!();
     println!("2) ==> `query_as`");
     println!("2) ==> this requires the `sqlx::FromRow` trait AND specifying the containing variable type (`Vec<Job>`)");
-    let jobs: Vec<Job> = sqlx::query_as(
+    let jobs: Vec<JobRow> = sqlx::query_as(
         r#"
             UPDATE jobs
             SET status = 'Running'
@@ -115,15 +128,19 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status
+            RETURNING id, status, payload
             "#,
     )
     .fetch_all(&pg_pool)
     .await
     .expect("failed to grab jobs!");
 
-    for x in jobs {
-        println!("2) Working on job #{} ({:?})", x.id, x.status)
+    for job in jobs {
+        println!(
+            "2) Working on job #{} ({:?}) -> {:?}",
+            job.id, job.status, job.payload
+        );
+        work_on_payload(&job.payload.0);
     }
 
     println!();
@@ -141,7 +158,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status as "status: JobStatus"
+            RETURNING id, status AS "status: JobStatus", payload
             "#
     )
     .fetch_all(&pg_pool)
@@ -149,7 +166,11 @@ async fn main() {
     .expect("failed to grab jobs!");
 
     for record in records {
-        println!("3) Working on job #{} ({:?})", record.id, record.status)
+        println!(
+            "3) Working on job #{} ({:?}) -> {:?}",
+            record.id, record.status, record.payload
+        );
+        work_on_payload(&serde_json::from_value(record.payload).unwrap())
     }
 
     println!();
@@ -167,8 +188,8 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status
-            "#
+            RETURNING id, status, payload
+            "#,
     )
     .fetch_all(&pg_pool)
     .await
@@ -177,8 +198,19 @@ async fn main() {
     for row in pg_rows {
         let id: i64 = row.try_get("id").unwrap();
         let status: JobStatus = row.try_get("status").unwrap();
-        println!("4) Working on job #{} ({:?})", id, status)
+        let payload: Json<Payload> = row.try_get("payload").unwrap();
+        println!("4) Working on job #{} ({:?}) -> {:?}", id, status, payload);
+        work_on_payload(&payload);
     }
 
     ()
+}
+
+fn work_on_payload(payload: &Payload) {
+    match payload {
+        Payload::NOOP => println!("   --- NOOP!"),
+        Payload::SendEmail { email } => {
+            println!("   --- EMAIL[{}]", email.to_ascii_uppercase());
+        }
+    }
 }
