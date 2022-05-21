@@ -1,50 +1,57 @@
-use serde::Serialize;
-use serde_json::json;
+use sqlx::Row;
 use sqlx::postgres::PgArguments;
 use sqlx::query::Query;
 use sqlx::PgPool;
 use sqlx::Pool;
 use sqlx::Postgres;
 
-#[derive(Serialize)]
-pub enum Payload {
-    NOOP,
-    SendEmail { email: String },
+#[derive(sqlx::Type, Debug)]
+#[sqlx(type_name = "JOB_STATUS")]
+enum JobStatus {
+    Queued,
+    Running,
+    Failed,
 }
 
-struct JobLight {
-    id: i64,
-}
-
+#[derive(sqlx::FromRow)]
 struct Job {
     id: i64,
-    // status: String,
-    payload: Payload,
+    status: JobStatus,
 }
 
 async fn must_get_pool() -> Pool<Postgres> {
-    PgPool::connect("postgres://postgres:leak-ok-ieQu5ahh4P@localhost:5433/my_app")
+    PgPool::connect("postgres://postgres:leak-ok-123@localhost:5433/my_app")
         .await
         .expect("Could not connect to the database!")
 }
 
-fn insert_jobs_query() -> Query<'static, Postgres, PgArguments> {
+fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
     println!("Inserting jobs...");
-
     sqlx::query!(
         r#"
-        INSERT INTO jobs (payload)
+        INSERT INTO jobs (status)
         VALUES ($1)
-             , ($2)
-             , ($3)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
+             , ($1)
     "#,
-        json!(Payload::NOOP),
-        json!(Payload::SendEmail {
-            email: "user1@example.com".to_string()
-        }),
-        json!(Payload::SendEmail {
-            email: "user2@example.com".to_string()
-        }),
+        JobStatus::Queued as JobStatus,
     )
 }
 
@@ -52,11 +59,13 @@ fn insert_jobs_query() -> Query<'static, Postgres, PgArguments> {
 async fn main() {
     let pg_pool = must_get_pool().await;
 
-    insert_jobs_query()
+    insert_jobs()
         .execute(&pg_pool)
         .await
-        .expect("Could not insert jobs");
+        .expect("Could not insert");
 
+    println!("1) ==> `query_as!`");
+    println!("1) ==> Use SQL type override to fix this error: '{}'", r#"error: unsupported type job_status of column #2 ("status")"#);
     let jobs = sqlx::query_as!(
         Job,
         r#"
@@ -70,32 +79,96 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, payload
+            RETURNING id, status as "status: JobStatus"
             "#
-    );
-    /*
-    ERROR HERE:
-            Checking sqlx-pb v0.1.0 (/home/benjamin/code/explore/rust/sqlx-pb)
-    error[E0308]: mismatched types
-      --> src/main.rs:83:16
-       |
-    83 |       let jobs = sqlx::query_as!(
-       |  ________________^
-    84 | |         Job,
-    85 | |         r#"
-    86 | |             UPDATE jobs
-    ...  |
-    97 | |             "#
-    98 | |     );
-       | |_____^ expected enum `Payload`, found enum `serde_json::Value`
-       |
-       = note: this error originates in the macro `$crate::sqlx_macros::expand_query` (in Nightly builds, run with -Z macro-backtrace for more info)
+    )
+    .fetch_all(&pg_pool)
+    .await
+    .expect("failed to grab jobs!");
 
-    For more information about this error, try `rustc --explain E0308`.
-    error: could not compile `sqlx-pb` due to previous error
-    [Finished running. Exit status: 101]
+    for job in jobs {
+        println!("1) Working on job #{} ({:?})", job.id, job.status)
+    }
 
-         */
+    println!();
+    println!("2) ==> `query_as`");
+    println!("2) ==> this requires the `sqlx::FromRow` trait AND specifying the containing variable type (`Vec<Job>`)");
+    let jobs: Vec<Job> = sqlx::query_as(
+        r#"
+            UPDATE jobs
+            SET status = 'Running'
+            WHERE id IN (
+                SELECT id
+                FROM jobs
+                WHERE status = 'Queued'
+                ORDER BY id
+                LIMIT 5
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, status
+            "#,
+    )
+    .fetch_all(&pg_pool)
+    .await
+    .expect("failed to grab jobs!");
+
+    for x in jobs {
+        println!("2) Working on job #{} ({:?})", x.id, x.status)
+    }
+
+    println!();
+    println!("3) ==> `query!`");
+    println!("3) ==> this requires the `sqlx::FromRow` trait AND the SQL type override");
+    let records = sqlx::query!(
+        r#"
+            UPDATE jobs
+            SET status = 'Running'
+            WHERE id IN (
+                SELECT id
+                FROM jobs
+                WHERE status = 'Queued'
+                ORDER BY id
+                LIMIT 5
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, status as "status: JobStatus"
+            "#
+    )
+    .fetch_all(&pg_pool)
+    .await
+    .expect("failed to grab jobs!");
+
+    for record in records {
+        println!("3) Working on job #{} ({:?})", record.id, record.status)
+    }
+
+    println!();
+    println!("4) ==> `query`");
+    println!("4) ==> No requirements (manual conversion)");
+    let pg_rows = sqlx::query(
+        r#"
+            UPDATE jobs
+            SET status = 'Running'
+            WHERE id IN (
+                SELECT id
+                FROM jobs
+                WHERE status = 'Queued'
+                ORDER BY id
+                LIMIT 5
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, status
+            "#
+    )
+    .fetch_all(&pg_pool)
+    .await
+    .expect("failed to grab rows!");
+
+    for row in pg_rows {
+        let id: i64 = row.try_get("id").unwrap();
+        let status: JobStatus = row.try_get("status").unwrap();
+        println!("4) Working on job #{} ({:?})", id, status)
+    }
 
     ()
 }

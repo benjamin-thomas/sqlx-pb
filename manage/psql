@@ -1,0 +1,5 @@
+#!/bin/bash
+
+set -e
+
+PGPASSWORD=leak-ok-123 exec psql -h localhost -p 5433 -U postgres -d my_app

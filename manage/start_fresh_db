@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+function info() {
+    echo -e "\033[1;34m--> $1\033[1;m"
+}
+
+info "Remove prior data..."
+docker-compose down --volumes
+
+info "Initialize the DB container..."
+docker-compose up --detach db
+
+info "Apply database migrations..."
+set +e
+while true; do
+    DATABASE_URL=postgres://postgres:leak-ok-123@localhost:5433/my_app sqlx migrate run
+    [ $? -eq 0 ] && break
+    info "Waiting for DB. Retrying in 1s..."
+    sleep 1
+done
+set -e
+
+echo "Tailing logs..."
+docker-compose logs -f db
