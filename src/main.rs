@@ -23,10 +23,10 @@ enum Payload {
     SendEmail { email: String },
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 enum Params {
     NOOP,
-    FollowUp(bool)
+    FollowUp(bool),
 }
 
 #[derive(sqlx::FromRow)]
@@ -34,6 +34,7 @@ struct JobRow {
     id: i64,
     status: JobStatus,
     payload: Json<Payload>,
+    params: Option<Json<Params>>,
 }
 
 async fn must_get_pool() -> Pool<Postgres> {
@@ -76,7 +77,6 @@ fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
         json!(Params::NOOP),
         json!(Params::FollowUp(true)),
         json!(Params::FollowUp(false)),
-
     )
 }
 
@@ -107,7 +107,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status as "status: JobStatus", payload AS "payload: Json<Payload>"
+            RETURNING id, status AS "status: JobStatus", payload AS "payload: Json<Payload>", params AS "params: Json<Params>"
             "#
     )
     .fetch_all(&pg_pool)
@@ -116,8 +116,8 @@ async fn main() {
 
     for job in jobs {
         println!(
-            "1) Working on job #{} ({:?}) -> {:?}",
-            job.id, job.status, job.payload
+            "1) Working on job #{} ({:?}) -> {:?} | {:?}",
+            job.id, job.status, job.payload, job.params,
         );
 
         work_on_payload(&job.payload.0);
@@ -138,7 +138,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status, payload
+            RETURNING id, status, payload, params
             "#,
     )
     .fetch_all(&pg_pool)
@@ -147,8 +147,8 @@ async fn main() {
 
     for job in jobs {
         println!(
-            "2) Working on job #{} ({:?}) -> {:?}",
-            job.id, job.status, job.payload
+            "2) Working on job #{} ({:?}) -> {:?} | {:?}",
+            job.id, job.status, job.payload, job.params
         );
         work_on_payload(&job.payload.0);
     }
@@ -168,7 +168,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status AS "status: JobStatus", payload
+            RETURNING id, status AS "status: JobStatus", payload, params
             "#
     )
     .fetch_all(&pg_pool)
@@ -177,8 +177,8 @@ async fn main() {
 
     for record in records {
         println!(
-            "3) Working on job #{} ({:?}) -> {:?}",
-            record.id, record.status, record.payload
+            "3) Working on job #{} ({:?}) -> {:?} | {:?}",
+            record.id, record.status, record.payload, record.params
         );
         work_on_payload(&serde_json::from_value(record.payload).unwrap())
     }
@@ -198,7 +198,7 @@ async fn main() {
                 LIMIT 5
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, status, payload
+            RETURNING id, status, payload, params
             "#,
     )
     .fetch_all(&pg_pool)
@@ -209,7 +209,8 @@ async fn main() {
         let id: i64 = row.try_get("id").unwrap();
         let status: JobStatus = row.try_get("status").unwrap();
         let payload: Json<Payload> = row.try_get("payload").unwrap();
-        println!("4) Working on job #{} ({:?}) -> {:?}", id, status, payload);
+        let params: Option<Json<Params>> = row.try_get("params").unwrap();
+        println!("4) Working on job #{} ({:?}) -> {:?} | {:?}", id, status, payload, params);
         work_on_payload(&payload);
     }
 
