@@ -23,6 +23,12 @@ enum Payload {
     SendEmail { email: String },
 }
 
+#[derive(Serialize)]
+enum Params {
+    NOOP,
+    FollowUp(bool)
+}
+
 #[derive(sqlx::FromRow)]
 struct JobRow {
     id: i64,
@@ -40,33 +46,37 @@ fn insert_jobs() -> Query<'static, Postgres, PgArguments> {
     println!("Inserting jobs...");
     sqlx::query!(
         r#"
-        INSERT INTO jobs (status, payload)
-        VALUES ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
-             , ($1, $2)
-             , ($1, $3)
+        INSERT INTO jobs (status, payload, params)
+        VALUES ($1, $2, NULL)
+             , ($1, $3, $4)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, $5)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, $6)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
+             , ($1, $2, NULL)
+             , ($1, $3, NULL)
     "#,
         JobStatus::Queued as JobStatus,
         json!(Payload::NOOP),
         json!(Payload::SendEmail {
             email: "user@example.com".to_string()
-        })
+        }),
+        json!(Params::NOOP),
+        json!(Params::FollowUp(true)),
+        json!(Params::FollowUp(false)),
+
     )
 }
 
